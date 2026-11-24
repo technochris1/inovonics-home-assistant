@@ -175,6 +175,7 @@ class AppConfig:
     bit_coalescing: BitCoalescingConfig
     logging: LoggingConfig
     config_path: Path
+    en1941_7_devices: frozenset[str] = frozenset()
 
 
 def resolve_config_path(config_path: str | Path | None = None) -> Path:
@@ -201,6 +202,12 @@ def load_config(config_path: str | Path | None = None) -> AppConfig:
     mqtt_data = data["mqtt"]
     bit_coalescing_data = data.get("bit_coalescing", {})
     logging_data = data.get("logging", {})
+    station_uids = data.get("en1941_7_devices", [])
+    if not isinstance(station_uids, list) or any(
+        not isinstance(uid, str) or len(uid) != 8 or any(char not in "0123456789ABCDEFabcdef" for char in uid)
+        for uid in station_uids
+    ):
+        raise ValueError("en1941_7_devices must be a list of quoted eight-digit hex UIDs")
 
     return AppConfig(
         processor=ProcessorConfig(
@@ -256,6 +263,7 @@ def load_config(config_path: str | Path | None = None) -> AppConfig:
             backup_count=int(logging_data.get("backup_count", 5)),
         ),
         config_path=path,
+        en1941_7_devices=frozenset(uid.upper() for uid in station_uids),
     )
 
 
@@ -309,6 +317,7 @@ def _normalize_config(data: dict[str, Any]) -> dict[str, Any]:
         "processor": processor,
         "mqtt": mqtt,
         "bit_coalescing": data.get("bit_coalescing", {}),
+        "en1941_7_devices": data.get("en1941_7_devices", []),
         "logging": data.get("logging", {}),
     }
 

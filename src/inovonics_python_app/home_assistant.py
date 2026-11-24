@@ -1,26 +1,26 @@
 from __future__ import annotations
 
+from inovonics_echostream_processor import security_event_to_bit_state_updates
 from inovonics_echostream_processor.events import SecurityMessageEvent
 
 
-COMPONENT_DEFINITIONS: dict[tuple[int, int], dict[str, str]] = {
-    (0, 1): {"name": "Reserved"},
-    (0, 2): {"name": "Reserved"},
-    (0, 3): {"name": "Reserved"},
-    (0, 4): {"name": "Reset"},
-    (0, 5): {"name": "Idle"},
-    (0, 6): {"name": "Case Tamper", "device_class": "tamper"},
-    (0, 7): {"name": "Battery Low", "device_class": "battery"},
-    (0, 8): {"name": "Reserved"},
-    (1, 1): {"name": "Alarm 1"},
-    (1, 2): {"name": "Alarm 2"},
-    (1, 3): {"name": "Alarm 3"},
-    (1, 4): {"name": "Alarm 4"},
-    (1, 5): {"name": "Reserved"},
-    (1, 6): {"name": "Reserved"},
-    (1, 7): {"name": "Reserved"},
-    (1, 8): {"name": "Reserved"},
+DEVICE_CLASSES = {
+    "case_wall_tamper": "tamper",
+    "eol_tamper": "tamper",
+    "low_battery": "battery",
+    "clean_me": "problem",
 }
+DEFAULT_POINT_LABELS = {
+    (0, 4): "Reset",
+    (0, 5): "Idle",
+    (0, 6): "Case Tamper",
+    (0, 7): "Battery Low",
+    (1, 1): "Alarm 1",
+    (1, 2): "Alarm 2",
+    (1, 3): "Alarm 3",
+    (1, 4): "Alarm 4",
+}
+STATION_CODE_POINTS = {(1, 1), (1, 2), (0, 6)}
 
 
 def discovery_topic(discovery_prefix: str, device_uid_hex: str) -> str:
@@ -35,8 +35,32 @@ def bool_to_state(flag: bool) -> str:
     return "ON" if flag else "OFF"
 
 
-def is_reserved_component(group: int, bit: int) -> bool:
-    return COMPONENT_DEFINITIONS.get((group, bit), {}).get("name") == "Reserved"
+def station_state_topic(state_prefix: str, device_uid_hex: str, alarm_number: int) -> str:
+    return f"{state_prefix}/{device_uid_hex}/station/{alarm_number}/state"
+
+
+def iter_bit_updates(event: SecurityMessageEvent, *, hide_reserved_events: bool, station_mode: bool = False):
+    for update in security_event_to_bit_state_updates(event):
+        point = (update.stat_group, update.bit)
+        if hide_reserved_events:
+            if update.reserved or update.supported is False:
+                continue
+            if update.supported is None and point not in DEFAULT_POINT_LABELS:
+                continue
+            if station_mode and point in STATION_CODE_POINTS:
+                continue
+        yield update
+
+
+def _binary_sensor(name: str, unique_id: str, topic: str) -> dict[str, str]:
+    return {
+        "p": "binary_sensor",
+        "name": name,
+        "unique_id": unique_id,
+        "state_topic": topic,
+        "payload_on": "ON",
+        "payload_off": "OFF",
+    }
 
 
 def build_discovery_payload(
@@ -46,39 +70,44 @@ def build_discovery_payload(
     app_name: str,
     app_version: str,
     hide_reserved_events: bool = True,
+    station_mode: bool = False,
 ) -> dict[str, object]:
+    uid = event.device_uid_hex
     components: dict[str, dict[str, str]] = {}
+    for update in iter_bit_updates(event, hide_reserved_events=hide_reserved_events, station_mode=station_mode):
+        group, bit = update.stat_group, update.bit
+        name = update.status_label or DEFAULT_POINT_LABELS.get((group, bit), "Reserved")
+        component = _binary_sensor(name, f"{uid}.STAT{group}.{bit}", state_topic(state_prefix, uid, group, bit))
+        if update.status_name in DEVICE_CLASSES:
+            component["device_class"] = DEVICE_CLASSES[update.status_name]
+        components[f"{uid}_{group}_{bit}"] = component
 
-    for (group, bit), metadata in COMPONENT_DEFINITIONS.items():
-        if hide_reserved_events and metadata["name"] == "Reserved":
-            continue
-
-        component = {
-            "p": "binary_sensor",
-            "name": metadata["name"],
-            "unique_id": f"{event.device_uid_hex}.STAT{group}.{bit}",
-            "state_topic": state_topic(state_prefix, event.device_uid_hex, group, bit),
-            "payload_on": "ON",
-            "payload_off": "OFF",
-        }
-        if "device_class" in metadata:
-            component["device_class"] = metadata["device_class"]
-        components[f"{event.device_uid_hex}_{group}_{bit}"] = component
+    if station_mode:
+        for alarm_number in range(1, 8):
+            components[f"{uid}_station_{alarm_number}"] = _binary_sensor(
+                f"Alarm {alarm_number}",
+                f"{uid}.ICN3000.ALARM{alarm_number}",
+                station_state_topic(state_prefix, uid, alarm_number),
+            )
 
     return {
         "dev": {
-            "ids": event.device_uid_hex,
+            "ids": uid,
             "name": f"{event.device_model} - {event.device_serial_number}",
             "mdl": event.device_model,
             "mf": "Inovonics",
             "sn": str(event.device_serial_number),
         },
-        "o": {
-            "name": app_name,
-            "sw": app_version,
-        },
+        "o": {"name": app_name, "sw": app_version},
         "cmps": components,
     }
+
+
+def discovery_removals(device_uid_hex: str, active_components):
+    """Supply Home Assistant removal markers for previously published points."""
+    raw_ids = {f"{device_uid_hex}_{group}_{bit}" for group in (0, 1) for bit in range(1, 9)}
+    station_ids = {f"{device_uid_hex}_station_{alarm}" for alarm in range(1, 8)}
+    return {key: {"p": "binary_sensor"} for key in sorted((raw_ids | station_ids) - active_components.keys())}
 
 
 def iter_state_messages(
@@ -87,15 +116,8 @@ def iter_state_messages(
     state_prefix: str,
     hide_reserved_events: bool = True,
 ):
-    for bit, value in enumerate(event.stat1_flags, start=1):
-        if hide_reserved_events and is_reserved_component(1, bit):
-            continue
-        yield state_topic(state_prefix, event.device_uid_hex, 1, bit), bool_to_state(value)
-
-    for bit, value in enumerate(event.stat0_flags, start=1):
-        if hide_reserved_events and is_reserved_component(0, bit):
-            continue
-        yield state_topic(state_prefix, event.device_uid_hex, 0, bit), bool_to_state(value)
+    for update in iter_bit_updates(event, hide_reserved_events=hide_reserved_events):
+        yield topic_and_payload_for_bit_state_update(update, state_prefix=state_prefix)
 
 
 def topic_and_payload_for_bit_state_update(update, *, state_prefix: str):

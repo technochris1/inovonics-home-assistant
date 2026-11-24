@@ -20,14 +20,14 @@ discovery, and state publication.
 ### Production
 
 ```bash
+pip install -r requirements.txt
 pip install .
 ```
 
 ### Local Development With Sibling Repos
 
 ```bash
-pip install -e ../InovonicsEchostreamProcessor
-pip install -e .
+pip install -e ../InovonicsEchostreamProcessor -e .
 ```
 
 ## Configuration
@@ -85,6 +85,14 @@ docker push technochris1/inovonicspythonapp:1.3.2
 docker push technochris1/inovonicspythonapp:latest
 ```
 
+To build with the sibling processor checkout before the processor tag is
+published, run from this repository:
+
+```sh
+docker buildx build --load --build-context processor-source=../InovonicsEchostreamProcessor -t inovonics-python-app:local .
+```
+
+The release build installs the processor from the Git tag in requirements.txt.
 The repository also includes [Docker Hub automation](#docker-hub-automation).
 That workflow publishes `latest` when `main` is updated and publishes the
 matching tag when a version tag such as `v1.3.2` is pushed.
@@ -247,6 +255,27 @@ INOVONICS_BIT_COALESCING_IDLE_TTL_MS=900000
 INOVONICS_BIT_COALESCING_FLUSH_INTERVAL_MS=250
 INOVONICS_LOGGING_LEVEL=INFO
 ```
+
+### Protocol behavior
+
+Both direct and aggregated security messages publish device state using the
+four-byte UID. Applicable raw points keep their discovery component IDs,
+MQTT unique IDs and state topics. With hide_reserved_events enabled,
+discovery and state publication follow documented model capabilities. The
+first update after startup removes obsolete discovery components individually.
+Previously retained raw state remains on its MQTT topic until overwritten or
+cleared at the broker. Disable the filter to expose all sixteen raw bits.
+
+Set en1941_7_devices in YAML to a list of quoted full UIDs for stations
+configured for seven-code, non-latching RF transmission. These devices add
+seven independent alarm entities under the same discovery device. Their
+topics are <state_prefix>/<uid>/station/<1-7>/state. A code turns its own
+entity on, a zero-input check-in leaves all call states alone, and RESET
+clears all seven. The broker retains published states. Pending updates are
+retried while the bridge is running. If an RF RESET goes unreceived, another
+RESET is needed to clear the retained calls. The default filtered view hides
+the three raw code inputs for these stations. Factory EN1941 devices continue
+to expose their normal two-input status points.
 
 ### Docker Hub Automation
 

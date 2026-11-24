@@ -7,6 +7,9 @@ processor:
   queue_timeout_seconds: 1
   auto_request_coordinator_metadata: true
 
+# Quote the full four-byte UID of each station configured for seven codes.
+en1941_7_devices: []
+
 mqtt:
   broker: 127.0.0.1
   port: 1883

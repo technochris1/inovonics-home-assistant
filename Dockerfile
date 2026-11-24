@@ -1,3 +1,5 @@
+FROM python:3.12-slim-bookworm AS processor-source
+
 FROM python:3.12-slim-bookworm AS builder
 
 ENV PATH="/opt/venv/bin:${PATH}"
@@ -9,9 +11,17 @@ RUN apt-get update \
     && python -m venv /opt/venv \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md requirements.txt ./
 COPY src ./src
-RUN pip install --no-cache-dir .
+RUN --mount=type=bind,from=processor-source,target=/processor-source \
+    if [ -f /processor-source/pyproject.toml ]; then \
+        mkdir -p /tmp/processor-source \
+        && cp -r /processor-source/pyproject.toml /processor-source/README.md /processor-source/src /tmp/processor-source \
+        && pip install --no-cache-dir /tmp/processor-source; \
+    else \
+        pip install --no-cache-dir -r requirements.txt; \
+    fi \
+    && pip install --no-cache-dir .
 
 FROM python:3.12-slim-bookworm
 
