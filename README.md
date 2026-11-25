@@ -18,3 +18,11 @@ On Home Assistant 2026.11 or newer, add this repository in **Settings →
 Marketplace → Add from link**. On earlier Home Assistant versions with HACS,
 add it as a custom repository of type **Integration**. See the
 [native installation guide](NATIVE_HOME_ASSISTANT.md) for both paths.
+
+## License
+
+The native integration in `custom_components/inovonics_echostream/` is
+licensed under [GPL-3.0-only](custom_components/inovonics_echostream/LICENSE).
+This license applies to the native integration directory. The separate
+[EchoStream processor](https://github.com/technochris1/InovonicsEchostreamProcessor)
+is also licensed under GPL-3.0-only.
