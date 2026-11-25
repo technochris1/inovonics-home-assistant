@@ -1,8 +1,11 @@
 # Inovonics EchoStream for Home Assistant
 
-The native **Inovonics EchoStream** integration connects Home Assistant
-directly to an EchoStream receiver over TCP or serial. It creates devices and
+An independent Home Assistant integration for compatible Inovonics EchoStream
+receivers. It connects directly over TCP or serial and creates devices and
 sensor entities in Home Assistant.
+
+For hardware photos and specifications, see the
+[Inovonics EN4200 product page](https://www.inovonics.com/products/security-only-serial-receiver-en4200/).
 
 For a new setup, open **Settings → Devices & services → Add integration**
 and select **Inovonics EchoStream**. See the
