@@ -1,8 +1,19 @@
 # Native Inovonics integration
 
-The integration runs in Home Assistant Core and owns the EchoStream connection. It supports a coordinator IP socket or a local serial device (8N1). Use either this integration or the bridge for a given coordinator connection.
+The integration runs in Home Assistant Core and connects directly to an EchoStream coordinator over TCP or local serial (8N1). No MQTT broker or bridge is required. Use one connection method per coordinator.
 
-## Install through HACS
+## Install through Home Assistant Marketplace
+
+On Home Assistant 2026.11 or newer:
+
+1. Open **Settings → Marketplace → Add from link**.
+2. Add `https://github.com/technochris1/inovonics-home-assistant`.
+3. Open **Inovonics EchoStream** and select **Install**. Restart Home Assistant if prompted.
+4. For a new setup, go to **Settings → Devices & services → Add integration → Inovonics EchoStream**, then enter the coordinator connection details.
+
+For an existing manual installation, keep its configured Home Assistant integration entry. Marketplace installs into the existing integration directory and will show future releases as updates.
+
+## Install through HACS on older Home Assistant versions
 
 1. Open **HACS → ⋮ → Custom repositories**.
 2. Add `https://github.com/technochris1/inovonics-home-assistant` with type **Integration**.

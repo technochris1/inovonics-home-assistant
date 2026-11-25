@@ -1,8 +1,27 @@
 # Inovonics EchoStream for Home Assistant
 
-Connect Inovonics EchoStream devices to Home Assistant directly over TCP or
-serial, or through the MQTT bridge. Both use the reusable
-`InovonicsEchostreamProcessor` package for transport and protocol processing.
+The native **Inovonics EchoStream** integration connects Home Assistant
+directly to an EchoStream receiver over TCP or serial. It creates devices and
+sensor entities in Home Assistant. No MQTT broker or bridge is required.
+
+For a new setup, open **Settings → Devices & services → Add integration**
+and select **Inovonics EchoStream**. See the
+[native setup and migration guide](NATIVE_HOME_ASSISTANT.md) for connection
+settings and instructions for keeping an existing integration entry.
+
+<!-- ha-marketplace:exclude-start -->
+
+## Install the native integration
+
+On Home Assistant 2026.11 or newer, add this repository in **Settings →
+Marketplace → Add from link**. On earlier Home Assistant versions with HACS,
+add it as a custom repository of type **Integration**. See the
+[native installation guide](NATIVE_HOME_ASSISTANT.md) for both paths.
+
+## Optional MQTT bridge
+
+The **Inovonics EchoStream Bridge** is a separate app for setups that use MQTT.
+Both connection options use the reusable `InovonicsEchostreamProcessor` package.
 
 ## Architecture
 
@@ -13,7 +32,7 @@ serial, or through the MQTT bridge. Both use the reusable
 - MQTT bridge: MQTT lifecycle, Home Assistant discovery/state topics,
   application logging, and deployment packaging
 
-## Install
+## Install the standalone MQTT bridge
 
 ### Production
 
@@ -27,14 +46,6 @@ pip install .
 ```bash
 pip install -e ../InovonicsEchostreamProcessor -e .
 ```
-
-## Native Home Assistant integration
-
-Use the native integration if Home Assistant should connect straight to the
-coordinator over TCP or serial. It creates devices and entities in Home
-Assistant without an MQTT broker. Install and update it through HACS by adding
-this repository as a custom repository of type **Integration**. See the
-[native installation and migration guide](NATIVE_HOME_ASSISTANT.md).
 
 ## Run the MQTT bridge inside Home Assistant OS
 
@@ -354,3 +365,5 @@ Primary languages and file types: Python.
 | `tests/README.md` | Folder-level summary for the code in that directory. |
 
 <!-- CODEX-REPO-MAP END -->
+
+<!-- ha-marketplace:exclude-end -->
