@@ -32,7 +32,9 @@ pip install -e ../InovonicsEchostreamProcessor -e .
 
 Use the native integration if Home Assistant should connect straight to the
 coordinator over TCP or serial. It creates devices and entities in Home
-Assistant without an MQTT broker. See [installation and migration](NATIVE_HOME_ASSISTANT.md).
+Assistant without an MQTT broker. Install and update it through HACS by adding
+this repository as a custom repository of type **Integration**. See the
+[native installation and migration guide](NATIVE_HOME_ASSISTANT.md).
 
 ## Run the MQTT bridge inside Home Assistant OS
 

@@ -9,9 +9,10 @@
   "documentation": "https://github.com/technochris1/inovonics-home-assistant",
   "integration_type": "hub",
   "iot_class": "local_push",
-  "version": "1.2.0",
+  "issue_tracker": "https://github.com/technochris1/inovonics-home-assistant/issues",
   "requirements": [
     "inovonics-echostream-processor @ https://github.com/technochris1/InovonicsEchostreamProcessor/archive/50ee5285bfde482a129b7e974b97af785a6325b1.tar.gz",
     "pyserial==3.5"
-  ]
+  ],
+  "version": "1.2.1"
 }

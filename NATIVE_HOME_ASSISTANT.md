@@ -2,7 +2,16 @@
 
 The integration runs in Home Assistant Core and owns the EchoStream connection. It supports a coordinator IP socket or a local serial device (8N1). Use either this integration or the bridge for a given coordinator connection.
 
-## Install
+## Install through HACS
+
+1. Open **HACS → ⋮ → Custom repositories**.
+2. Add `https://github.com/technochris1/inovonics-home-assistant` with type **Integration**.
+3. Open **Inovonics EchoStream** in HACS and select **Download**.
+4. Restart Home Assistant. For a new setup, go to **Settings → Devices & services → Add integration → Inovonics EchoStream**, then choose TCP or serial and enter the coordinator connection details.
+
+For an existing manual installation, follow the same HACS download and restart steps and keep the existing Home Assistant integration entry. Future releases appear in HACS, where you can download them and restart Home Assistant to apply them.
+
+## Install manually
 
 Copy the inovonics_echostream folder under custom_components into Home Assistant's configuration directory. Restart Home Assistant Core. Go to **Settings → Devices & services → Add integration → Inovonics EchoStream**, select the transport and enter the hardware settings. For TCP, use the coordinator or gateway LAN address and configured TCP port. For serial, use the device path reported in **Settings → System → Hardware**.
 
