@@ -2,7 +2,7 @@ name: Inovonics EchoStream Bridge
 description: Publish EchoStream receiver events to Home Assistant through MQTT.
 version: "1.1.0"
 slug: inovonics_bridge
-url: https://github.com/technochris1/InovonicsPythonApp/tree/main/inovonics_bridge
+url: https://github.com/technochris1/inovonics-home-assistant/tree/main/inovonics_bridge
 arch:
   - amd64
   - aarch64

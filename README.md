@@ -1,10 +1,8 @@
-# Inovonics Python App
+# Inovonics EchoStream for Home Assistant
 
-`InovonicsPythonApp` is the production MQTT and Home Assistant bridge for
-Inovonics EchoStream traffic. It depends on the reusable
-`InovonicsEchostreamProcessor` package for transport and protocol processing and
-owns only application concerns such as MQTT connectivity, Home Assistant
-discovery, and state publication.
+Connect Inovonics EchoStream devices to Home Assistant directly over TCP or
+serial, or through the MQTT bridge. Both use the reusable
+`InovonicsEchostreamProcessor` package for transport and protocol processing.
 
 ## Architecture
 
@@ -12,7 +10,7 @@ discovery, and state publication.
   protocol parsing, normalized EchoStream events, runtime detection, optional
   bit-state coalescing
 - `InovonicsEchostreamProcessor` CPython transport: threaded TCP socket adapter
-- `InovonicsPythonApp`: MQTT lifecycle, Home Assistant discovery/state topics,
+- MQTT bridge: MQTT lifecycle, Home Assistant discovery/state topics,
   application logging, and deployment packaging
 
 ## Install
@@ -320,9 +318,7 @@ python -m inovonics_python_app
 ```
 
 <!-- CODEX-REPO-MAP START -->
-# InovonicsPythonApp
-
-This repository contains the `InovonicsPythonApp` project.
+## Repository map
 
 Primary languages and file types: Python.
 

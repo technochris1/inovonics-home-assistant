@@ -28,7 +28,7 @@ dependencies = [
 inovonics-python-app = "inovonics_python_app.__main__:main"
 
 [project.urls]
-Repository = "https://github.com/technochris1/InovonicsPythonApp"
+Repository = "https://github.com/technochris1/inovonics-home-assistant"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

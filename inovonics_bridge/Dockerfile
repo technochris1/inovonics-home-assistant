@@ -6,7 +6,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/* \
     && python -m venv /opt/venv \
-    && git clone --filter=blob:none --no-checkout https://github.com/technochris1/InovonicsPythonApp.git /bridge \
+    && git clone --filter=blob:none --no-checkout https://github.com/technochris1/inovonics-home-assistant.git /bridge \
     && git -C /bridge checkout --detach "$BRIDGE_REVISION" \
     && /opt/venv/bin/pip install --no-cache-dir -r /bridge/requirements.txt '/bridge' 'pyserial==3.5'
 
