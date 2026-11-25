@@ -1,28 +1,3 @@
-preview_mqtt_migration:
-  name: Preview MQTT entity migration
-  description: Count legacy Inovonics points eligible for migration without changing them.
-  fields:
-    include_raw_entities:
-      name: Explicit legacy raw points
-      description: Include a named legacy MQTT point even when the model table filters it.
-      selector:
-        entity:
-          multiple: true
-migrate_mqtt_entities:
-  name: Migrate MQTT entities
-  description: Transfer legacy Inovonics points to the native integration, preserving registry IDs.
-  fields:
-    confirm:
-      name: Confirm migration
-      required: true
-      selector:
-        boolean:
-    include_raw_entities:
-      name: Explicit legacy raw points
-      description: Optional raw points that must remain available to existing automations.
-      selector:
-        entity:
-          multiple: true
 set_coordinator_nid:
   name: Set coordinator NID
   description: Change the coordinator network ID and verify it through readback. This can interrupt repeater traffic.
@@ -77,12 +52,3 @@ set_device_offline_timeout:
           min: 0
           max: 10080
           mode: box
-
-cleanup_migration_duplicates:
-  name: Clean up MQTT migration duplicates
-  description: Preview or remove duplicate devices and sensors left by MQTT migration.
-  fields:
-    confirm:
-      name: Apply cleanup
-      selector:
-        boolean:

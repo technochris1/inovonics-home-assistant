@@ -1,6 +1,6 @@
 # Native Inovonics integration
 
-The integration runs in Home Assistant Core and connects directly to an EchoStream coordinator over TCP or local serial (8N1). No MQTT broker or bridge is required. Use one connection method per coordinator.
+The integration runs in Home Assistant Core and connects directly to an EchoStream coordinator over TCP or local serial (8N1). Use one connection method per coordinator.
 
 ## Install through Home Assistant Marketplace
 
@@ -45,28 +45,3 @@ supplies any coordinator queries while attached. Set the silence interval
 above the longest expected gap in incoming traffic. When the coordinator
 link drops or the watchdog restarts it, the debug client is disconnected and
 can reconnect to the same port.
-
-## Migrate from MQTT
-
-Under **Developer tools → Actions**, run **Preview MQTT entity migration**.
-Review the supported point count, then run **Migrate MQTT entities** with
-confirmation. The migration matches hardware UIDs and raw points and reuses
-the existing Home Assistant entity and device registry IDs. It can create
-native entities for devices still waiting for a live check-in. Their state
-is unknown until the integration hears them.
-
-If an existing automation intentionally refers to a reserved or unsupported
-raw point, list its legacy entity ID in **Explicit legacy raw points** in
-both actions. This preserves the same raw bit the automation previously used.
-Other unsupported points stay on MQTT. Disabled MQTT placeholders prevent
-retained discovery from recreating a competing entity after migration.
-
-**Clean up MQTT migration duplicates** previews or removes disabled sensor
-copies and duplicate device records left after migration. Run it with
-**Apply cleanup** off to see what it found, then turn it on to apply the
-cleanup. It groups remaining MQTT-only points under **Inovonics legacy MQTT
-points** and preserves their entity IDs and state topics. Keep the MQTT
-bridge stopped so it cannot republish the old discovery configurations.
-
-Stop the standalone Inovonics MQTT bridge before migrating its entities.
-Keep the MQTT integration running for devices that still use it.

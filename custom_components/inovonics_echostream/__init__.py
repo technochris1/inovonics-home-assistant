@@ -1,11 +1,8 @@
 """Native EchoStream integration for Home Assistant."""
 
-import asyncio
-
 import voluptuous as vol
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
-from homeassistant.core import SupportsResponse
 from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_register_admin_service
@@ -13,7 +10,8 @@ from homeassistant.helpers.service import async_register_admin_service
 from .const import DOMAIN
 from .control import MAX_OFFLINE_MINUTES
 from .runtime import Runtime
-from . import cleanup, migration
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 PLATFORMS = (Platform.BINARY_SENSOR, Platform.SENSOR)
 UID_SCHEMA = vol.All(cv.string, vol.Upper, vol.Match(r"^[0-9A-F]{8}$"))
@@ -29,8 +27,6 @@ def active_runtime(hass):
 
 
 async def async_setup(hass, config):
-    migration_lock = asyncio.Lock()
-
     async def action(call):
         runtime = active_runtime(hass)
         data = call.data
@@ -47,33 +43,6 @@ async def async_setup(hass, config):
         except ValueError as error:
             raise ServiceValidationError(str(error)) from error
 
-    async def migrate_mqtt(call):
-        async with migration_lock:
-            runtime = active_runtime(hass)
-            candidates, skipped = migration.plan(hass, runtime, set(call.data.get("include_raw_entities", ())))
-            report = migration.summary(candidates, skipped, runtime)
-            if call.service == "preview_mqtt_migration":
-                return report
-            if not call.data["confirm"]:
-                raise ServiceValidationError("Confirm the MQTT entity migration first.")
-            if candidates:
-                report.update(await migration.migrate(hass, runtime, candidates))
-            return report
-
-    async def cleanup_mqtt(call):
-        async with migration_lock:
-            runtime = active_runtime(hass)
-            return await cleanup.cleanup(hass, runtime.entry, call.data["confirm"])
-
-    async_register_admin_service(hass, DOMAIN, "cleanup_migration_duplicates", cleanup_mqtt,
-                                 vol.Schema({vol.Optional("confirm", default=False): cv.boolean}),
-                                 SupportsResponse.ONLY)
-    raw_entities = {vol.Optional("include_raw_entities"): [cv.entity_id]}
-    async_register_admin_service(hass, DOMAIN, "preview_mqtt_migration", migrate_mqtt,
-                                 vol.Schema(raw_entities), SupportsResponse.ONLY)
-    async_register_admin_service(hass, DOMAIN, "migrate_mqtt_entities", migrate_mqtt,
-                                 vol.Schema({**raw_entities, vol.Required("confirm"): cv.boolean}),
-                                 SupportsResponse.ONLY)
     async_register_admin_service(hass, DOMAIN, "set_coordinator_nid", action, vol.Schema({
         vol.Required("nid"): NID_SCHEMA, vol.Required("confirm"): cv.boolean,
     }))

@@ -9,7 +9,7 @@ For hardware photos and specifications, see the
 
 For a new setup, open **Settings → Devices & services → Add integration**
 and select **Inovonics EchoStream**. See the
-[native setup and migration guide](NATIVE_HOME_ASSISTANT.md) for connection
+[native setup guide](NATIVE_HOME_ASSISTANT.md) for connection
 settings and instructions for keeping an existing integration entry.
 
 ## Install the native integration
@@ -21,8 +21,8 @@ add it as a custom repository of type **Integration**. See the
 
 ## License
 
-The native integration in `custom_components/inovonics_echostream/` is
-licensed under [GPL-3.0-only](custom_components/inovonics_echostream/LICENSE).
-This license applies to the native integration directory. The separate
+The native integration is licensed under [GPL-3.0-only](LICENSE), also
+included in the [integration package](custom_components/inovonics_echostream/LICENSE).
+The separate
 [EchoStream processor](https://github.com/technochris1/InovonicsEchostreamProcessor)
 is also licensed under GPL-3.0-only.
