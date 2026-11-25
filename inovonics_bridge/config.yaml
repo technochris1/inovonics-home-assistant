@@ -1,0 +1,51 @@
+name: Inovonics EchoStream Bridge
+description: Publish EchoStream receiver events to Home Assistant through MQTT.
+version: "1.1.0"
+slug: inovonics_bridge
+url: https://github.com/technochris1/InovonicsPythonApp/tree/main/inovonics_bridge
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+timeout: 30
+ingress: true
+ingress_port: 8099
+panel_admin: true
+panel_icon: mdi:radio-tower
+uart: true
+ports:
+  19001/tcp: null
+ports_description:
+  19001/tcp: Optional EchoStream debug socket
+services:
+  - mqtt:want
+options:
+  connection: tcp
+  processor_port: 10001
+  serial_baud: 9600
+  debug_mode: "off"
+  mqtt_port: 1883
+  mqtt_client_id: inovonics-python-app
+  discovery_prefix: homeassistant
+  state_prefix: inovonics
+  hide_reserved_events: true
+  en1941_7_devices: []
+schema:
+  connection: "list(tcp|serial)"
+  processor_host: str?
+  processor_port: port
+  serial_port: "device(subsystem=tty)?"
+  serial_baud: "int(300,230400)"
+  debug_mode: "list(off|receive|passthrough|trace)"
+  debug_client: str?
+  mqtt_host: str?
+  mqtt_port: port
+  mqtt_username: str?
+  mqtt_password: password?
+  mqtt_client_id: str(1,)
+  discovery_prefix: str(1,)
+  state_prefix: str(1,)
+  hide_reserved_events: bool
+  en1941_7_devices:
+    - match(^[0-9A-Fa-f]{8}$)

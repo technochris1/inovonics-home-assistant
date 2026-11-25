@@ -186,7 +186,7 @@ def resolve_config_path(config_path: str | Path | None = None) -> Path:
     if env_config_path:
         return Path(env_config_path)
 
-    for candidate in (Path("config.local.yaml"), Path("config.yaml")):
+    for candidate in (Path("config.local.yaml"), Path("config.yaml"), Path("bridge-defaults.yaml")):
         if candidate.exists():
             return candidate
 

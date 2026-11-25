@@ -7,3 +7,4 @@ dist/
 *.log
 .env
 config.local.yaml
+/config.yaml

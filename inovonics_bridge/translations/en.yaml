@@ -1,0 +1,49 @@
+configuration:
+  debug_mode:
+    name: Debug socket mode
+    description: Receive mirrors raw bytes, Passthrough also writes client bytes, and Trace emits direction-tagged hex lines.
+  debug_client:
+    name: Allowed debug client
+    description: Enter the allowed client's IPv4 address or a trusted IPv4 subnet. Enable the port separately in Network.
+  connection:
+    name: Connection method
+    description: Choose TCP for a LAN coordinator or serial-to-TCP gateway, or Serial for a locally connected serial adapter.
+  serial_port:
+    name: Serial device
+    description: Select the coordinator serial port attached to the Home Assistant host.
+  serial_baud:
+    name: Serial baud rate
+    description: Match the coordinator's serial speed. The app uses 8 data bits, no parity, and one stop bit.
+  processor_host:
+    name: Coordinator IP address or hostname
+    description: LAN IP address or hostname of the receiver or serial-to-TCP gateway.
+  processor_port:
+    name: EchoStream TCP port
+    description: Use the TCP port configured on the receiver or gateway.
+  mqtt_host:
+    name: MQTT broker host
+    description: Leave unset to use the broker registered with Home Assistant Supervisor.
+  mqtt_port:
+    name: MQTT broker port
+    description: Used when you set an MQTT broker host.
+  mqtt_username:
+    name: MQTT username
+    description: Optional credentials for a manually configured broker.
+  mqtt_password:
+    name: MQTT password
+    description: Optional credentials for a manually configured broker.
+  mqtt_client_id:
+    name: MQTT client ID
+    description: Use a unique client ID for this bridge.
+  discovery_prefix:
+    name: Home Assistant discovery prefix
+    description: Match the prefix in the MQTT integration.
+  state_prefix:
+    name: MQTT state prefix
+    description: Keep the same prefix when migrating from an existing bridge.
+  hide_reserved_events:
+    name: Hide unsupported status points
+    description: Show only applicable points for known transmitter models.
+  en1941_7_devices:
+    name: Seven-code ICN 3000 devices
+    description: Enter the full eight-digit EchoStream UID of each configured seven-code station.

@@ -30,6 +30,20 @@ pip install .
 pip install -e ../InovonicsEchostreamProcessor -e .
 ```
 
+## Native Home Assistant integration
+
+Use the native integration if Home Assistant should connect straight to the
+coordinator over TCP or serial. It creates devices and entities in Home
+Assistant without an MQTT broker. See [installation and migration](NATIVE_HOME_ASSISTANT.md).
+
+## Run the MQTT bridge inside Home Assistant OS
+
+Install the **Inovonics EchoStream Bridge** app through **Settings → Apps → Install app**. Add this GitHub repository using the store's **Repositories** menu, then select the bridge and install it. Select TCP or Serial in **Configuration**. Open the app Web UI to manage coordinator and repeater NIDs and configure offline detection. The app can use the Mosquitto broker registered with Supervisor or the external MQTT broker you already use. See the [app setup guide](inovonics_bridge/DOCS.md).
+
+For a local installation, copy the `inovonics_bridge` folder into Home Assistant’s `local_apps` share (also named `addons`), then refresh the app store and install it under Local apps.
+
+To migrate, keep your current discovery prefix and state prefix and stop the old bridge before starting the app. Your existing applicable MQTT entities keep their IDs. Home Assistant Container can continue to use the standalone Docker image and MQTT integration.
+
 ## Configuration
 
 The app resolves configuration in this order:
@@ -38,8 +52,9 @@ The app resolves configuration in this order:
 2. `INOVONICS_CONFIG_PATH`
 3. `config.local.yaml`
 4. `config.yaml`
+5. `bridge-defaults.yaml`
 
-Use [config.example.yaml](config.example.yaml)
+Use [example-config.yaml](example-config.yaml)
 as the tracked baseline and keep environment-specific credentials in
 `config.local.yaml`.
 
@@ -320,8 +335,8 @@ Primary languages and file types: Python.
 | `.gitattributes` | Supporting file. |
 | `.gitignore` | Supporting file. |
 | `App.py` | Main Python app entrypoint. |
-| `config.example.yaml` | YAML configuration. |
-| `config.yaml` | YAML configuration. |
+| `example-config.yaml` | YAML configuration. |
+| `bridge-defaults.yaml` | Default standalone bridge configuration. |
 | `Dockerfile` | Container build instructions. |
 | `pyproject.toml` | Python project metadata. |
 | `requirements.txt` | Python dependency list. |

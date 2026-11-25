@@ -104,7 +104,7 @@ def _mqtt_bridge(published, *, coalescing=False, stations=()):
     from inovonics_python_app.config import load_config
     from inovonics_python_app.mqtt_app import MqttBridgeApp
 
-    config = load_config("config.example.yaml")
+    config = load_config("example-config.yaml")
     config.bit_coalescing.enabled = coalescing
     config.en1941_7_devices = frozenset(stations)
     bridge = MqttBridgeApp(config)

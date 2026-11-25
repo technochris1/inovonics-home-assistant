@@ -1,0 +1,88 @@
+preview_mqtt_migration:
+  name: Preview MQTT entity migration
+  description: Count legacy Inovonics points eligible for migration without changing them.
+  fields:
+    include_raw_entities:
+      name: Explicit legacy raw points
+      description: Include a named legacy MQTT point even when the model table filters it.
+      selector:
+        entity:
+          multiple: true
+migrate_mqtt_entities:
+  name: Migrate MQTT entities
+  description: Transfer legacy Inovonics points to the native integration, preserving registry IDs.
+  fields:
+    confirm:
+      name: Confirm migration
+      required: true
+      selector:
+        boolean:
+    include_raw_entities:
+      name: Explicit legacy raw points
+      description: Optional raw points that must remain available to existing automations.
+      selector:
+        entity:
+          multiple: true
+set_coordinator_nid:
+  name: Set coordinator NID
+  description: Change the coordinator network ID and verify it through readback. This can interrupt repeater traffic.
+  fields:
+    nid:
+      name: Network ID
+      description: "0 uses broadcast mode. 1–31 use directed mode."
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 31
+          mode: box
+    confirm:
+      name: Confirm coordinator change
+      description: Confirm that you are ready to reconfigure the coordinator and its repeaters.
+      required: true
+      selector:
+        boolean:
+sync_repeater_nid:
+  name: Apply coordinator NID to a repeater
+  description: Apply the current coordinator NID to a heard repeater. A matching reset report confirms the update.
+  fields:
+    uid:
+      name: Repeater UID
+      required: true
+      selector:
+        text:
+    nid:
+      name: Expected coordinator NID
+      description: Enter the coordinator NID currently displayed by the integration.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 31
+          mode: box
+set_device_offline_timeout:
+  name: Set device offline timeout
+  description: Override an endpoint or repeater offline window. Omit minutes to use its default.
+  fields:
+    uid:
+      name: Device UID
+      required: true
+      selector:
+        text:
+    minutes:
+      name: Minutes
+      description: Use 0 to disable monitoring for this device.
+      selector:
+        number:
+          min: 0
+          max: 10080
+          mode: box
+
+cleanup_migration_duplicates:
+  name: Clean up MQTT migration duplicates
+  description: Preview or remove duplicate devices and sensors left by MQTT migration.
+  fields:
+    confirm:
+      name: Apply cleanup
+      selector:
+        boolean:
