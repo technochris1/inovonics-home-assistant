@@ -12,7 +12,7 @@
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/technochris1/inovonics-home-assistant/issues",
   "requirements": [
-    "inovonics-echostream-processor@https://github.com/technochris1/InovonicsEchostreamProcessor/archive/7080f6ce396383c12f96a62bf60ed84ae4daf831.tar.gz"
+    "inovonics-echostream-processor==1.5.1"
   ],
-  "version": "1.2.6"
+  "version": "1.2.7"
 }
