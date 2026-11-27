@@ -133,7 +133,7 @@ class DebugRelay:
                     continue
                 writable = self.mode == "passthrough"
                 if not self.control.begin_debug(writable):
-                    LOG.info("Debug connection rejected while the source is unavailable or an NID write is active.")
+                    LOG.info("Debug connection rejected while the source is unavailable.")
                     continue
                 peer = Peer(client)
                 try:

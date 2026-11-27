@@ -189,7 +189,7 @@ class Coordinator:
                 "connected": self.connected and self.outage_since is None,
                 "last_rx": self.last_rx, "outage_since": self.outage_since,
                 "nid": self.nid, "serial": self.serial, "notice": self.notice,
-                "busy": self.pending is not None or self.debug_writes,
+                "busy": self.pending is not None,
                 "debug_writes": self.debug_writes, "windows": self.windows.copy(),
                 "device_generations": self.device_generations.copy(),
                 "devices": [
@@ -247,7 +247,7 @@ class Coordinator:
         if not 0 <= target <= 31:
             raise ValueError("The NID must be from 0 through 31.")
         with self.lock:
-            self.check_change_ready_locked(allow_passthrough=uid is None)
+            self.check_change_ready_locked(require_nid=not self.debug_writes)
             if uid is None:
                 if expected_nid is not None and self.nid != expected_nid:
                     raise ValueError(f"The coordinator now reports NID {self.nid}. Read it again before changing it.")
@@ -259,9 +259,9 @@ class Coordinator:
                 if (not UID.fullmatch(uid) or not device or device.kind != "repeater"
                         or uid not in self.seen_this_session or self.online_locked(uid, device, time()) is False):
                     raise ValueError("The targeted repeater must be heard on this connection.")
-                if target != self.nid:
+                if not self.debug_writes and target != self.nid:
                     raise ValueError("A repeater can only adopt the coordinator's current NID.")
-                if device.nid == target:
+                if not self.debug_writes and device.nid == target:
                     self.notice = "This repeater already reports the coordinator's NID."
                     return Change("repeater", target, uid, result="already_matched")
             self.pending = Change(
@@ -271,11 +271,9 @@ class Coordinator:
             self.notice = "NID change queued."
             return self.pending
 
-    def check_change_ready_locked(self, *, allow_passthrough=False):
-        if not self.connected or (self.nid is None and not (allow_passthrough and self.debug_writes)):
+    def check_change_ready_locked(self, *, require_nid=True):
+        if not self.connected or (require_nid and self.nid is None):
             raise ValueError("Wait for the coordinator to report its current NID.")
-        if self.debug_writes and not allow_passthrough:
-            raise ValueError("Disconnect the passthrough client before changing a NID here.")
         if self.pending is not None:
             raise ValueError("An NID operation is already in progress.")
 
@@ -317,7 +315,7 @@ class Coordinator:
 
     def begin_debug(self, writable):
         with self.lock:
-            if not self.connected or (writable and self.pending is not None):
+            if not self.connected:
                 return False
             if writable:
                 self.debug_writes = True
@@ -404,7 +402,7 @@ class Coordinator:
                 return
             if now >= self.next_poll and (
                 now < self.nid_read_deadline or not change or change.kind == "coordinator"
-                or change.stage in ("waiting_reset", "verify_coordinator")
+                or change.stage in ("waiting_reset", "verify_coordinator", "preflight")
             ):
                 self.send_nid_query_locked(send)
                 self.next_poll = now + (poll_interval if not change and self.nid is not None else min(3, poll_interval))
@@ -420,8 +418,18 @@ class Coordinator:
             elif isinstance(event, CoordinatorNetworkIdEvent):
                 self.nid = event.network_id
                 self.last_report_query = self.nid_queries
-                if (change and change.stage == "preflight" and self.last_report_query > change.verify_after_query):
-                    if change.expected_nid is not None and event.network_id != change.expected_nid:
+                if change and change.kind == "repeater" and event.network_id != change.target:
+                    self.finish_locked("The coordinator NID changed. The repeater update could not be verified.")
+                elif (change and change.stage in ("preflight", "verify_coordinator")
+                      and self.last_report_query > change.verify_after_query):
+                    if change.kind == "repeater":
+                        reported = (change.first_repeater_nid if change.stage == "verify_coordinator"
+                                    else self.devices[change.uid].nid)
+                        if reported == change.target:
+                            self.finish_locked(f"Repeater {change.uid} already reports NID {reported}.", "already_matched")
+                        else:
+                            change.stage = "ready_to_write"
+                    elif change.expected_nid is not None and event.network_id != change.expected_nid:
                         self.finish_locked(f"The coordinator now reports NID {event.network_id}. Read it again before changing it.")
                     elif event.network_id == change.target:
                         self.finish_locked("The coordinator already reports that NID.", "already_matched")
@@ -430,14 +438,6 @@ class Coordinator:
                 elif (active and change.kind == "coordinator" and event.network_id == change.target
                         and self.last_report_query > change.verify_after_query):
                     self.finish_locked(f"Coordinator confirmed NID {change.target}.", "confirmed")
-                elif change and change.kind == "repeater" and event.network_id != change.target:
-                    self.finish_locked("The coordinator NID changed. The repeater update could not be verified.")
-                elif (change and change.stage == "verify_coordinator"
-                      and self.last_report_query > change.verify_after_query):
-                    if change.first_repeater_nid == change.target:
-                        self.finish_locked(f"Repeater {change.uid} already reports NID {change.target}.", "already_matched")
-                    else:
-                        change.stage = "queued"
             # Passthrough ACK/NAK replies cannot be attributed to a particular sender.
             elif active and not self.debug_writes and isinstance(event, NakEvent) and change.stage == "sent":
                 self.finish_locked(f"Coordinator returned NAK {event.error_code}. Check the reported NID before retrying.")

@@ -26,7 +26,7 @@ in the store you use.
 
 Copy the inovonics_echostream folder under custom_components into Home Assistant's configuration directory. Restart Home Assistant Core. Go to **Settings → Devices & services → Add integration → Inovonics EchoStream**, select the transport and enter the hardware settings. For TCP, use the coordinator or gateway LAN address and configured TCP port. For serial, use the device path reported in **Settings → System → Hardware**.
 
-Open **Configure → Integration settings** to set default endpoint and repeater offline windows, supported-point filtering, or the debug mode and allowlisted client. A zero offline window disables the connectivity check. Debug is off by default. Receive mirrors raw RX, passthrough also forwards client TX, and trace emits direction-tagged hex lines. While a passthrough client is attached, automatic polling pauses. **Read coordinator NID** and **Set coordinator NID** send their commands between complete client frames while forwarding continues. The client also receives the coordinator's replies to those commands.
+Open **Configure → Integration settings** to set default endpoint and repeater offline windows, supported-point filtering, or the debug mode and allowlisted client. A zero offline window disables the connectivity check. Debug is off by default. Receive mirrors raw RX, passthrough also forwards client TX, and trace emits direction-tagged hex lines. While a passthrough client is attached, idle polling pauses. Coordinator NID reads and writes and repeater NID updates send their commands between complete client frames while forwarding continues. The client also receives the coordinator's replies to those commands.
 
 ## Read and update network IDs
 

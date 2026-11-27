@@ -208,7 +208,6 @@ class InovonicsOptions(config_entries.OptionsFlowWithReload):
         if not repeaters:
             return self.async_abort(reason="no_repeaters")
         if user_input is not None:
-            self._control = runtime.control
             self._repeater_uid = user_input["uid"]
             return await self.async_step_prepare_repeater()
         options = [SelectOptionDict(value=uid, label=f"{device['model']} ({uid})") for uid, device in repeaters.items()]
@@ -222,7 +221,14 @@ class InovonicsOptions(config_entries.OptionsFlowWithReload):
                 step_id="prepare_repeater", data_schema=vol.Schema({}),
                 description_placeholders={"uid": self._repeater_uid},
             )
+        runtime = getattr(self.config_entry, "runtime_data", None)
+        if runtime is None or not runtime.active:
+            return self.async_abort(reason="coordinator_unavailable")
+        self._control = runtime.control
         try:
+            await runtime.read_coordinator_nid(for_change=True)
+            if self._closed:
+                return self.async_abort(reason="repeater_failed")
             self._change = await self.hass.async_add_executor_job(
                 self._control.start_repeater_setup, self._repeater_uid,
             )
