@@ -15,6 +15,7 @@ from .debug_relay import DebugRelay
 
 PORT = vol.All(vol.Coerce(int), vol.Range(min=1, max=65535))
 MINUTES = vol.All(vol.Coerce(int), vol.Range(min=0, max=MAX_OFFLINE_MINUTES))
+NID = vol.All(vol.Coerce(int), vol.Range(min=0, max=31))
 
 SECONDS = vol.All(vol.Coerce(int), vol.Range(min=0, max=MAX_WATCHDOG_SECONDS))
 
@@ -107,9 +108,71 @@ class InovonicsOptions(config_entries.OptionsFlowWithReload):
         self._repeater_uid = None
         self._progress = None
         self._closed = False
+        self._current_nid = None
 
     async def async_step_init(self, user_input=None):
-        return self.async_show_menu(step_id="init", menu_options=["settings", "repeater"])
+        return self.async_show_menu(step_id="init", menu_options=["settings", "coordinator_nid", "repeater"])
+
+    async def async_step_coordinator_nid(self, user_input=None):
+        return self.async_show_menu(step_id="coordinator_nid", menu_options=["read_nid", "set_nid"])
+
+    async def async_step_read_nid(self, user_input=None):
+        if user_input is not None:
+            return self.async_create_entry(title="", data=dict(self.config_entry.options))
+        runtime = getattr(self.config_entry, "runtime_data", None)
+        if runtime is None or not runtime.active:
+            return self.async_abort(reason="coordinator_unavailable")
+        try:
+            nid = await runtime.read_coordinator_nid()
+        except ValueError as error:
+            return self.async_abort(reason="nid_operation_unavailable", description_placeholders={"error": str(error)})
+        return self.async_show_form(
+            step_id="read_nid", data_schema=vol.Schema({}), description_placeholders={"nid": str(nid)}, last_step=True,
+        )
+
+    async def async_step_set_nid(self, user_input=None):
+        runtime = getattr(self.config_entry, "runtime_data", None)
+        if runtime is None or not runtime.active:
+            return self.async_abort(reason="coordinator_unavailable")
+        errors = {}
+        try:
+            if self._current_nid is None:
+                self._current_nid = await runtime.read_coordinator_nid()
+            if user_input is not None and user_input.get("confirm"):
+                self._control = runtime.control
+                self._change = await self.hass.async_add_executor_job(
+                    lambda: self._control.request(user_input["nid"], expected_nid=self._current_nid),
+                )
+                if self._closed:
+                    await self.hass.async_add_executor_job(self._control.cancel_change, self._change)
+                    return self.async_abort(reason="coordinator_nid_unverified")
+                return await self.async_step_verify_nid()
+            if user_input is not None:
+                errors["confirm"] = "confirm_nid"
+        except ValueError as error:
+            return self.async_abort(reason="nid_operation_unavailable", description_placeholders={"error": str(error)})
+        return self.async_show_form(
+            step_id="set_nid", errors=errors, description_placeholders={"nid": str(self._current_nid)},
+            data_schema=vol.Schema({
+                vol.Required("nid", default=(user_input or {}).get("nid", self._current_nid)): NID,
+                vol.Required("confirm", default=False): bool,
+            }),
+        )
+
+    async def async_step_verify_nid(self, user_input=None):
+        return self.change_progress("verify_nid", "coordinator_nid_result", {"nid": str(self._change.target)})
+
+    async def async_step_coordinator_nid_result(self, user_input=None):
+        _, result = await self.hass.async_add_executor_job(self._control.change_status, self._change)
+        if result not in ("confirmed", "already_matched"):
+            return self.async_abort(reason="coordinator_nid_unverified")
+        return self.async_show_form(
+            step_id="coordinator_nid_complete", data_schema=vol.Schema({}), last_step=True,
+            description_placeholders={"nid": str(self._change.target)},
+        )
+
+    async def async_step_coordinator_nid_complete(self, user_input=None):
+        return self.async_create_entry(title="", data=dict(self.config_entry.options))
 
     async def async_step_settings(self, user_input=None):
         errors = {}
@@ -166,23 +229,28 @@ class InovonicsOptions(config_entries.OptionsFlowWithReload):
         except ValueError as error:
             return self.async_abort(reason="repeater_unavailable", description_placeholders={"error": str(error)})
         if self._closed:
-            await self.hass.async_add_executor_job(self._control.cancel_repeater_setup, self._change)
+            await self.hass.async_add_executor_job(self._control.cancel_change, self._change)
             return self.async_abort(reason="repeater_failed")
         return await self.async_step_first_reset()
 
     def repeater_progress(self, step, ready_stages):
+        return self.change_progress(
+            step, "repeater_result", {"uid": self._repeater_uid, "nid": str(self._change.target)}, ready_stages,
+        )
+
+    def change_progress(self, step, next_step, placeholders, ready_stages=()):
         if self._progress is not None and self._progress.done():
             self._progress.result()
             self._progress = None
-            return self.async_show_progress_done(next_step_id="repeater_result")
+            return self.async_show_progress_done(next_step_id=next_step)
         if self._progress is None:
-            self._progress = self.hass.async_create_task(self.wait_for_repeater(ready_stages))
+            self._progress = self.hass.async_create_task(self.wait_for_change(ready_stages))
         return self.async_show_progress(
             step_id=step, progress_action=step, progress_task=self._progress,
-            description_placeholders={"uid": self._repeater_uid, "nid": str(self._change.target)},
+            description_placeholders=placeholders,
         )
 
-    async def wait_for_repeater(self, ready_stages):
+    async def wait_for_change(self, ready_stages):
         while True:
             stage, result = await self.hass.async_add_executor_job(self._control.change_status, self._change)
             if result is not None or stage in ready_stages:
@@ -218,4 +286,4 @@ class InovonicsOptions(config_entries.OptionsFlowWithReload):
         if self._progress is not None:
             self._progress.cancel()
         if self._change is not None:
-            self.hass.async_add_executor_job(self._control.cancel_repeater_setup, self._change)
+            self.hass.async_add_executor_job(self._control.cancel_change, self._change)

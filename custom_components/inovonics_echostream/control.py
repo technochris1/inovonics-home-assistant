@@ -239,15 +239,17 @@ class Coordinator:
                 self.windows, self.overrides = before
                 raise ValueError("Unable to save supervision settings.") from None
 
-    def request(self, target, uid=None):
+    def request(self, target, uid=None, *, expected_nid=None):
         if not 0 <= target <= 31:
             raise ValueError("The NID must be from 0 through 31.")
         with self.lock:
             self.check_change_ready_locked()
             if uid is None:
+                if expected_nid is not None and self.nid != expected_nid:
+                    raise ValueError(f"The coordinator now reports NID {self.nid}. Read it again before changing it.")
                 if target == self.nid:
                     self.notice = "The coordinator already reports that NID."
-                    return self.notice
+                    return Change("coordinator", target, result="already_matched")
             else:
                 device = self.devices.get(uid)
                 if (not UID.fullmatch(uid) or not device or device.kind != "repeater"
@@ -257,10 +259,10 @@ class Coordinator:
                     raise ValueError("A repeater can only adopt the coordinator's current NID.")
                 if device.nid == target:
                     self.notice = "This repeater already reports the coordinator's NID."
-                    return self.notice
+                    return Change("repeater", target, uid, result="already_matched")
             self.pending = Change("coordinator" if uid is None else "repeater", target, uid)
             self.notice = "NID change queued."
-            return self.notice
+            return self.pending
 
     def check_change_ready_locked(self):
         if not self.connected or self.nid is None:
@@ -287,10 +289,10 @@ class Coordinator:
         with self.lock:
             return change.stage, change.result
 
-    def cancel_repeater_setup(self, change):
+    def cancel_change(self, change):
         with self.lock:
-            if self.pending is change:
-                self.finish_locked("Repeater setup cancelled. Read the reported NID before retrying.")
+            if self.pending is change and (change.kind == "repeater" or change.stage == "queued"):
+                self.finish_locked("NID setup cancelled. Read the reported NID before retrying.")
 
     def request_nid_read(self):
         with self.lock:
@@ -364,7 +366,8 @@ class Coordinator:
                 send(body + bytes((EchoStreamProtocol.checksum(body),)))
                 change.stage = "sent"
                 change.sent_at = now
-                self.next_poll = now + 1
+                change.verify_after_query = self.nid_queries
+                self.next_poll = now
                 self.notice = "Command sent. Waiting for the hardware to report the selected NID."
                 return
             if change and now >= change.sent_at + (20 if change.kind == "coordinator" else REPEATER_RESET_TIMEOUT):
@@ -391,7 +394,8 @@ class Coordinator:
             elif isinstance(event, CoordinatorNetworkIdEvent):
                 self.nid = event.network_id
                 self.last_report_query = self.nid_queries
-                if active and change.kind == "coordinator" and event.network_id == change.target:
+                if (active and change.kind == "coordinator" and event.network_id == change.target
+                        and self.last_report_query > change.verify_after_query):
                     self.finish_locked(f"Coordinator confirmed NID {change.target}.", "confirmed")
                 elif change and change.kind == "repeater" and event.network_id != change.target:
                     self.finish_locked("The coordinator NID changed. The repeater update could not be verified.")

@@ -26,11 +26,13 @@ in the store you use.
 
 Copy the inovonics_echostream folder under custom_components into Home Assistant's configuration directory. Restart Home Assistant Core. Go to **Settings → Devices & services → Add integration → Inovonics EchoStream**, select the transport and enter the hardware settings. For TCP, use the coordinator or gateway LAN address and configured TCP port. For serial, use the device path reported in **Settings → System → Hardware**.
 
-Open the integration's options to set default endpoint and repeater offline windows, supported-point filtering, or the debug mode and allowlisted client. A zero offline window disables the connectivity check. Debug is off by default. Receive mirrors raw RX, passthrough also forwards client TX, and trace emits direction-tagged hex lines. Passthrough pauses the integration's own coordinator commands while a debug client is attached.
+Open **Configure → Integration settings** to set default endpoint and repeater offline windows, supported-point filtering, or the debug mode and allowlisted client. A zero offline window disables the connectivity check. Debug is off by default. Receive mirrors raw RX, passthrough also forwards client TX, and trace emits direction-tagged hex lines. Passthrough pauses the integration's own coordinator commands while a debug client is attached.
 
 ## Read and update network IDs
 
-The coordinator device shows its last reported network ID (NID) and the latest NID operation. In **Developer tools → Actions**, run **Read coordinator NID** to request and return a fresh report. Select the coordinator when managing more than one. **Set coordinator NID** requires confirmation and matching readback. NID changes can interrupt RF traffic. Use a maintenance window.
+In **Settings → Devices & services → Inovonics EchoStream**, open **Configure → Coordinator NID** on the coordinator entry. Choose **Read coordinator NID** to query the connected hardware, or **Set coordinator NID** to read the current value, enter a new NID, and confirm the change. Home Assistant shows success once the coordinator reports the requested value. NID changes can interrupt RF traffic. Use a maintenance window.
+
+The same read and set actions are also available under **Developer tools → Actions**, where you can select the coordinator. The coordinator device shows its last reported NID and the latest NID operation.
 
 To update a repeater, open the coordinator's **Configure** menu in **Settings → Devices & services → Inovonics EchoStream** and select **Update repeater NID**.
 
