@@ -1,6 +1,7 @@
 """Set up and configure the coordinator through Devices & services."""
 
 from asyncio import sleep
+from time import monotonic
 
 import voluptuous as vol
 
@@ -10,7 +11,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.selector import SelectOptionDict, SelectSelector, SelectSelectorConfig
 
 from .const import DEFAULT_ALERT_SECONDS, DEFAULT_WATCHDOG_SECONDS, DOMAIN, MAX_WATCHDOG_SECONDS
-from .control import MAX_OFFLINE_MINUTES, Source, read_coordinator_serial
+from .control import MAX_OFFLINE_MINUTES, REPEATER_RESET_TIMEOUT, Source, read_coordinator_serial
 from .debug_relay import DebugRelay
 
 PORT = vol.All(vol.Coerce(int), vol.Range(min=1, max=65535))
@@ -163,7 +164,9 @@ class InovonicsOptions(config_entries.OptionsFlowWithReload):
         return self.change_progress("verify_nid", "coordinator_nid_result", {"nid": str(self._change.target)})
 
     async def async_step_coordinator_nid_result(self, user_input=None):
-        _, result = await self.hass.async_add_executor_job(self._control.change_status, self._change)
+        _, result, _, _ = await self.hass.async_add_executor_job(self._control.change_status, self._change)
+        if result == "nid_rejected":
+            return self.nid_rejected()
         if result not in ("confirmed", "already_matched"):
             return self.async_abort(reason="coordinator_nid_unverified")
         return self.async_show_form(
@@ -241,26 +244,35 @@ class InovonicsOptions(config_entries.OptionsFlowWithReload):
 
     def repeater_progress(self, step, ready_stages):
         return self.change_progress(
-            step, "repeater_result", {"uid": self._repeater_uid, "nid": str(self._change.target)}, ready_stages,
+            step, "repeater_result", self.repeater_placeholders(), ready_stages, REPEATER_RESET_TIMEOUT,
         )
 
-    def change_progress(self, step, next_step, placeholders, ready_stages=()):
+    def repeater_placeholders(self):
+        return {"uid": self._repeater_uid, "nid": str(self._change.target), "seconds": str(REPEATER_RESET_TIMEOUT)}
+
+    def change_progress(self, step, next_step, placeholders, ready_stages=(), duration=None):
         if self._progress is not None and self._progress.done():
             self._progress.result()
             self._progress = None
             return self.async_show_progress_done(next_step_id=next_step)
         if self._progress is None:
-            self._progress = self.hass.async_create_task(self.wait_for_change(ready_stages))
+            self._progress = self.hass.async_create_task(self.wait_for_change(ready_stages, duration))
         return self.async_show_progress(
             step_id=step, progress_action=step, progress_task=self._progress,
             description_placeholders=placeholders,
         )
 
-    async def wait_for_change(self, ready_stages):
+    async def wait_for_change(self, ready_stages, duration):
+        last_percent = None
         while True:
-            stage, result = await self.hass.async_add_executor_job(self._control.change_status, self._change)
+            stage, result, started, _ = await self.hass.async_add_executor_job(self._control.change_status, self._change)
             if result is not None or stage in ready_stages:
                 return
+            if duration is not None:
+                percent = min(100, max(0, int((monotonic() - started) * 100 / duration)))
+                if percent != last_percent:
+                    self.async_update_progress(percent / 100)
+                    last_percent = percent
             await sleep(0.2)
 
     async def async_step_first_reset(self, user_input=None):
@@ -270,12 +282,21 @@ class InovonicsOptions(config_entries.OptionsFlowWithReload):
         return self.repeater_progress("second_reset", ())
 
     async def async_step_repeater_result(self, user_input=None):
-        _, result = await self.hass.async_add_executor_job(self._control.change_status, self._change)
+        _, result, _, reported = await self.hass.async_add_executor_job(self._control.change_status, self._change)
         if result is None:
             return await self.async_step_second_reset()
+        if result == "nid_rejected":
+            return self.nid_rejected()
         if result not in ("confirmed", "already_matched"):
-            return self.async_abort(reason=result)
+            return self.async_abort(
+                reason=result, description_placeholders={**self.repeater_placeholders(), "reported": str(reported)},
+            )
         return await self.async_step_repeater_complete(user_input)
+
+    def nid_rejected(self):
+        return self.async_abort(
+            reason="nid_rejected", description_placeholders={"code": f"0x{self._change.nak_code:02X}"},
+        )
 
     async def async_step_repeater_complete(self, user_input=None):
         if user_input is not None:

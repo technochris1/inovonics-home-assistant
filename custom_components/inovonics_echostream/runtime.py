@@ -13,11 +13,12 @@ from homeassistant.core import callback
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 from inovonics_echostream_processor import (
-    EchoStreamProcessorCore, EchoStreamProtocol, SecurityMessageEvent, security_event_to_bit_state_updates,
+    AckEvent, EchoStreamProcessorCore, EchoStreamProtocol, NakEvent, SecurityMessageEvent,
+    security_event_to_bit_state_updates,
 )
 
 from .const import DEFAULT_ALERT_SECONDS, DEFAULT_WATCHDOG_SECONDS, DOMAIN
-from .control import NID_READ_TIMEOUT, Coordinator, Source, read_coordinator_serial
+from .control import GATEWAY_ACK_TIMEOUT, NID_READ_TIMEOUT, Coordinator, Source, read_coordinator_serial
 from .debug_relay import DebugRelay
 
 LOG = logging.getLogger(__name__)
@@ -55,9 +56,7 @@ class Link:
             self.read_in_session = False
             try:
                 with source.open() as connection:
-                    if self.control.serial is None:
-                        source.send(connection, EchoStreamProtocol.REQUEST_COORDINATOR_SERIAL_NUMBER)
-                    elif read_coordinator_serial(source, connection) != self.control.serial:
+                    if self.control.serial is not None and read_coordinator_serial(source, connection) != self.control.serial:
                         raise ValueError("The connection belongs to a different physical coordinator.")
                     self.control.open_session()
                     self.receive_session(source, connection)
@@ -76,12 +75,20 @@ class Link:
 
     def receive_session(self, source, connection):
         core = EchoStreamProcessorCore(auto_request_coordinator_metadata=False)
+        awaiting_nid_write = None
+        ack_deadline = 0
 
-        def send(packet):
+        def send(packet, *, managed=True):
+            nonlocal awaiting_nid_write, ack_deadline
             source.send(connection, packet)
             if self.relay is not None:
                 self.relay.observe("tx", packet)
+            if packet != b"\x10\x02\x12":
+                awaiting_nid_write = managed and (packet[0] == 0x20 or packet[:3] == b"\x34\x04\x02")
+                ack_deadline = monotonic() + GATEWAY_ACK_TIMEOUT
 
+        if self.control.serial is None:
+            send(EchoStreamProtocol.REQUEST_COORDINATOR_SERIAL_NUMBER)
         last_rx = monotonic()
         while not self.stop_event.is_set():
             data = source.read(connection)
@@ -95,11 +102,20 @@ class Link:
             elif self.watchdog_seconds and now - last_rx >= self.watchdog_seconds:
                 raise TimeoutError(f"No coordinator data for {self.watchdog_seconds} seconds")
             for event in core.feed(data).events:
-                generation = self.control.observe(event)
+                nid_write_reply = False
+                if isinstance(event, (AckEvent, NakEvent)):
+                    nid_write_reply = awaiting_nid_write is True
+                    awaiting_nid_write = None
+                generation = self.control.observe(event, nid_write_reply=nid_write_reply)
                 if isinstance(event, SecurityMessageEvent):
                     self.on_security(event, generation)
-            passthrough_idle = self.relay is not None and self.relay.forward(send)
-            self.control.tick(send, poll_interval=self.poll_interval, passthrough_idle=passthrough_idle)
+            if awaiting_nid_write is not None and now >= ack_deadline:
+                if awaiting_nid_write:
+                    LOG.debug("No serial acknowledgement received for the NID command before timeout.")
+                awaiting_nid_write = None
+            self.control.tick(send, poll_interval=self.poll_interval, transmit_ready=awaiting_nid_write is None)
+            if self.relay is not None and awaiting_nid_write is None:
+                self.relay.forward(lambda packet: send(packet, managed=False))
             self.control.checkpoint()
 
 

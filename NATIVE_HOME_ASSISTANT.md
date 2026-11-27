@@ -38,9 +38,11 @@ You can request a NID read while a coordinator or repeater NID operation is in p
 
 To update a repeater, open the coordinator's **Configure** menu in **Settings → Devices & services → Inovonics EchoStream** and select **Update repeater NID**.
 
-1. Select the repeater. Open its enclosure and check that its jumper is in directed mode.
-2. Continue in Home Assistant and press the repeater's reset button. If its reported NID differs from the coordinator's directed NID, the integration sends an update to that repeater.
-3. When Home Assistant prompts you, press reset again. The flow completes when that same repeater reports the expected NID. If the first report already matched, the flow completes without sending an update.
+1. Select the repeater. Open its enclosure and check that its jumper is in directed mode. Keep the enclosure open and its tamper switch released while updating. [Inovonics repeater manual](https://www.inovonics.com/wp-content/uploads/2013/03/357-00049-05-Rev-A.pdf)
+2. Continue in Home Assistant and press reset within two minutes. If the reported NID differs from the coordinator's directed NID, the integration sends an update to that repeater.
+3. When prompted, press reset again within two minutes. The flow completes when that repeater reports the expected NID. If the first report already matched, the flow completes without sending an update.
+
+The progress indicator shows elapsed time in each reset window. If verification times out, Home Assistant shows the last NID reported during verification or tells you it received no reset report. If the coordinator rejects the command, Home Assistant shows the serial NAK code. Passthrough commands share the same serial acknowledgment pacing.
 
 ## Remove a sensor or repeater
 

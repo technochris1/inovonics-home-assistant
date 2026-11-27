@@ -9,8 +9,6 @@ import select
 import socket
 from threading import Event, Lock, Thread
 
-from inovonics_echostream_processor import EchoStreamProtocol
-
 LOG = logging.getLogger(__name__)
 DEBUG_PORT = 19001
 
@@ -21,7 +19,7 @@ class Peer:
     rx: Queue = field(default_factory=lambda: Queue(maxsize=128))
     tx: Queue = field(default_factory=lambda: Queue(maxsize=32))
     closed: Event = field(default_factory=Event)
-    tx_frame: bytearray | None = field(default_factory=bytearray)
+    tx_frame: bytearray = field(default_factory=bytearray)
 
     def close(self):
         self.closed.set()
@@ -30,19 +28,20 @@ class Peer:
         except OSError:
             pass
 
-    def record_tx(self, data):
-        # TCP can split a client command across reads. Only insert a query between frames.
-        if self.tx_frame is None:
-            return
-        self.tx_frame.extend(data)
-        while len(self.tx_frame) >= 2:
-            length = self.tx_frame[1] + 1
-            if len(self.tx_frame) < length:
-                return
-            if length < 3 or EchoStreamProtocol.checksum(self.tx_frame[:length - 1]) != self.tx_frame[length - 1]:
-                self.tx_frame = None
-                return
-            del self.tx_frame[:length]
+    def next_command(self):
+        # TCP can split or combine serial frames. Send one at a time so each gets its own ACK.
+        while not self.closed.is_set():
+            if len(self.tx_frame) >= 2:
+                length = max(2, self.tx_frame[1] + 1)
+                if len(self.tx_frame) >= length:
+                    command = bytes(self.tx_frame[:length])
+                    del self.tx_frame[:length]
+                    return command
+            try:
+                self.tx_frame.extend(self.tx.get_nowait())
+            except Empty:
+                return None
+        return None
 
 
 class DebugRelay:
@@ -104,20 +103,10 @@ class DebugRelay:
 
     def forward(self, send):
         if self.mode != "passthrough":
-            return False
+            return
         peer = self.current()
-        if peer is None:
-            return False
-        for _ in range(8):
-            if peer.closed.is_set():
-                break
-            try:
-                data = peer.tx.get_nowait()
-            except Empty:
-                break
-            send(data)
-            peer.record_tx(data)
-        return not peer.closed.is_set() and peer.tx_frame == b""
+        if peer is not None and (command := peer.next_command()) is not None:
+            send(command)
 
     def serve(self):
         while not self.stop_event.is_set():
@@ -151,7 +140,11 @@ class DebugRelay:
 
     def exchange(self, peer, writable):
         while not peer.closed.is_set() and not self.stop_event.is_set():
-            readable, _, _ = select.select([peer.socket], [], [], 0.05)
+            if peer.tx.full():
+                peer.closed.wait(0.05)
+                readable = []
+            else:
+                readable, _, _ = select.select([peer.socket], [], [], 0.05)
             if readable:
                 data = peer.socket.recv(4096)
                 if not data or not writable:

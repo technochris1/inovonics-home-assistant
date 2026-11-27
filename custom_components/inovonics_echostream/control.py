@@ -21,6 +21,7 @@ DEFAULT_OFFLINE_MINUTES = 120
 REPEATER_RESET_TIMEOUT = 120
 NID_READ_TIMEOUT = 5
 COORDINATOR_CHANGE_TIMEOUT = 20
+GATEWAY_ACK_TIMEOUT = 1.1
 
 
 @dataclass(frozen=True)
@@ -88,11 +89,20 @@ class Source:
 def read_coordinator_serial(source, connection):
     core = EchoStreamProcessorCore(auto_request_coordinator_metadata=False)
     source.send(connection, EchoStreamProtocol.REQUEST_COORDINATOR_SERIAL_NUMBER)
-    deadline = monotonic() + 5
+    started = monotonic()
+    deadline = started + 5
+    serial = None
+    acknowledged = False
     while monotonic() < deadline:
         for event in core.feed(source.read(connection)).events:
+            if isinstance(event, AckEvent):
+                acknowledged = True
+            elif isinstance(event, NakEvent):
+                raise ValueError(f"Coordinator rejected the serial number request (NAK {event.error_code}).")
             if isinstance(event, CoordinatorSerialNumberEvent) and event.serial_number:
-                return event.serial_number
+                serial = event.serial_number
+        if serial is not None and (acknowledged or monotonic() - started >= GATEWAY_ACK_TIMEOUT):
+            return serial
     raise TimeoutError("The coordinator did not report its serial number.")
 
 
@@ -105,8 +115,10 @@ class Change:
     sent_at: float = 0
     result: str | None = None
     first_repeater_nid: int | None = None
+    verification_nid: int | None = None
     verify_after_query: int = 0
     expected_nid: int | None = None
+    nak_code: int | None = None
 
 
 @dataclass
@@ -292,7 +304,7 @@ class Coordinator:
 
     def change_status(self, change):
         with self.lock:
-            return change.stage, change.result
+            return change.stage, change.result, change.sent_at, change.verification_nid
 
     def cancel_change(self, change):
         with self.lock:
@@ -360,13 +372,13 @@ class Coordinator:
         self.nid_queries += 1
         self.nid_read_deadline = 0
 
-    def tick(self, send, *, now=None, poll_interval=30, passthrough_idle=False):
+    def tick(self, send, *, now=None, poll_interval=30, transmit_ready=True):
         """Run in the link thread so commands and reads share one transport."""
         now = monotonic() if now is None else now
         with self.lock:
             change = self.pending
             if self.debug_writes and change is None:
-                if passthrough_idle and now < self.nid_read_deadline:
+                if transmit_ready and now < self.nid_read_deadline:
                     self.send_nid_query_locked(send)
                 return
             if change and now >= change.sent_at + (
@@ -374,10 +386,21 @@ class Coordinator:
             ):
                 if change.stage == "waiting_reset":
                     self.finish_locked("Timed out waiting for the repeater's first reset report.", "first_reset_timeout")
+                elif change.kind == "repeater" and change.stage in ("sent", "accepted"):
+                    if change.verification_nid is None:
+                        self.finish_locked(
+                            f"No reset report was received from repeater {change.uid} after the NID command.",
+                            "second_reset_timeout",
+                        )
+                    else:
+                        self.finish_locked(
+                            f"Repeater {change.uid} last reported NID {change.verification_nid}. Expected NID {change.target}.",
+                            "repeater_nid_mismatch",
+                        )
                 else:
                     self.finish_locked("NID change was not verified before timeout. Check the reported NID before retrying.")
                 return
-            if self.debug_writes and not passthrough_idle:
+            if not transmit_ready:
                 return
             if self.debug_writes and change.stage == "queued":
                 change.stage = "preflight"
@@ -407,7 +430,7 @@ class Coordinator:
                 self.send_nid_query_locked(send)
                 self.next_poll = now + (poll_interval if not change and self.nid is not None else min(3, poll_interval))
 
-    def observe(self, event):
+    def observe(self, event, *, nid_write_reply=False):
         with self.lock:
             change = self.pending
             active = change and change.stage in ("sent", "accepted")
@@ -438,10 +461,10 @@ class Coordinator:
                 elif (active and change.kind == "coordinator" and event.network_id == change.target
                         and self.last_report_query > change.verify_after_query):
                     self.finish_locked(f"Coordinator confirmed NID {change.target}.", "confirmed")
-            # Passthrough ACK/NAK replies cannot be attributed to a particular sender.
-            elif active and not self.debug_writes and isinstance(event, NakEvent) and change.stage == "sent":
-                self.finish_locked(f"Coordinator returned NAK {event.error_code}. Check the reported NID before retrying.")
-            elif active and not self.debug_writes and isinstance(event, AckEvent) and change.stage == "sent":
+            elif active and nid_write_reply and isinstance(event, NakEvent) and change.stage == "sent":
+                change.nak_code = event.error_code
+                self.finish_locked(f"Coordinator rejected the NID command (NAK 0x{event.error_code:02X}).", "nid_rejected")
+            elif active and nid_write_reply and isinstance(event, AckEvent) and change.stage == "sent":
                 change.stage = "accepted"
                 self.notice = (
                     "Coordinator accepted the request. Awaiting NID readback." if change.kind == "coordinator"
@@ -461,8 +484,12 @@ class Coordinator:
                             change.verify_after_query = self.nid_queries
                             change.stage = "verify_coordinator"
                             self.next_poll = 0
-                        elif active and nid == change.target:
-                            self.finish_locked(f"Repeater {uid} confirmed NID {nid}.", "confirmed")
+                        elif active:
+                            change.verification_nid = nid
+                            if nid == change.target:
+                                self.finish_locked(f"Repeater {uid} confirmed NID {nid}.", "confirmed")
+                            else:
+                                self.notice = f"Repeater {uid} reset reported NID {nid}. Waiting for NID {change.target}."
             hop = getattr(event, "first_hop_hex", None)
             if is_repeater(hop):
                 self.heard_locked(hop, "repeater")

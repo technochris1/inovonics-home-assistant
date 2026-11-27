@@ -108,7 +108,7 @@
       },
       "prepare_repeater": {
         "title": "Prepare repeater {uid}",
-        "description": "Open the repeater and check that its jumper is in directed mode. Continue in Home Assistant before pressing the repeater's reset button."
+        "description": "Open the repeater and check that its jumper is in directed mode. Keep the housing open and the tamper switch released so the repeater can accept the NID update. Select Continue before pressing reset."
       },
       "repeater_complete": {
         "title": "Repeater NID verified",
@@ -117,16 +117,19 @@
     },
     "progress": {
       "verify_nid": "Waiting for the connected coordinator to report NID {nid}.",
-      "first_reset": "Press the reset button on repeater {uid}. Home Assistant will read its NID and send an update only if it differs from the coordinator's NID ({nid}).",
-      "second_reset": "The update command has been sent to repeater {uid}. Press its reset button again to verify that it reports NID {nid}."
+      "first_reset": "Press the reset button on repeater {uid} within {seconds} seconds. The progress indicator shows how much of the window has elapsed. Home Assistant sends an update only if the reported NID differs from the coordinator's NID ({nid}).",
+      "second_reset": "The update command was sent to repeater {uid}. Press reset again within {seconds} seconds to verify NID {nid}. The progress indicator shows how much of the window has elapsed."
     },
     "abort": {
       "coordinator_unavailable": "The coordinator is unavailable. Wait until it is connected and try again.",
       "nid_operation_unavailable": "{error}",
       "coordinator_nid_unverified": "Home Assistant could not verify the requested NID. Read the current NID before retrying.",
+      "nid_rejected": "The coordinator rejected the NID command (NAK {code}). Check the coordinator and repeater before retrying.",
       "no_repeaters": "This coordinator has not heard any repeaters yet.",
       "repeater_unavailable": "{error}",
-      "first_reset_timeout": "Home Assistant did not receive a reset report from the selected repeater. Check the jumper and connection, then try again.",
+      "first_reset_timeout": "Home Assistant received no reset report from repeater {uid} within {seconds} seconds. Check its power, battery and radio range, then try again.",
+      "second_reset_timeout": "Home Assistant received no reset report from repeater {uid} within {seconds} seconds of sending the update. Check its power, battery and radio range before retrying.",
+      "repeater_nid_mismatch": "Repeater {uid} responded to reset and last reported NID {reported}. The expected NID is {nid}. Check directed mode and keep the tamper switch released during the update before retrying.",
       "repeater_failed": "The repeater NID was not verified. Check the coordinator's NID and the repeater's jumper before trying again."
     },
     "error": {
