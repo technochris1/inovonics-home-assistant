@@ -9,6 +9,8 @@ import select
 import socket
 from threading import Event, Lock, Thread
 
+from inovonics_echostream_processor import EchoStreamProtocol
+
 LOG = logging.getLogger(__name__)
 DEBUG_PORT = 19001
 
@@ -19,6 +21,7 @@ class Peer:
     rx: Queue = field(default_factory=lambda: Queue(maxsize=128))
     tx: Queue = field(default_factory=lambda: Queue(maxsize=32))
     closed: Event = field(default_factory=Event)
+    tx_frame: bytearray | None = field(default_factory=bytearray)
 
     def close(self):
         self.closed.set()
@@ -26,6 +29,20 @@ class Peer:
             self.socket.shutdown(socket.SHUT_RDWR)
         except OSError:
             pass
+
+    def record_tx(self, data):
+        # TCP can split a client command across reads. Only insert a query between frames.
+        if self.tx_frame is None:
+            return
+        self.tx_frame.extend(data)
+        while len(self.tx_frame) >= 2:
+            length = self.tx_frame[1] + 1
+            if len(self.tx_frame) < length:
+                return
+            if length < 3 or EchoStreamProtocol.checksum(self.tx_frame[:length - 1]) != self.tx_frame[length - 1]:
+                self.tx_frame = None
+                return
+            del self.tx_frame[:length]
 
 
 class DebugRelay:
@@ -87,10 +104,10 @@ class DebugRelay:
 
     def forward(self, send):
         if self.mode != "passthrough":
-            return
+            return False
         peer = self.current()
         if peer is None:
-            return
+            return False
         for _ in range(8):
             if peer.closed.is_set():
                 break
@@ -99,6 +116,8 @@ class DebugRelay:
             except Empty:
                 break
             send(data)
+            peer.record_tx(data)
+        return not peer.closed.is_set() and peer.tx_frame == b""
 
     def serve(self):
         while not self.stop_event.is_set():

@@ -87,7 +87,7 @@
       },
       "set_nid": {
         "title": "Set coordinator NID",
-        "description": "The connected coordinator currently reports NID {nid}. Changing it can interrupt repeater traffic.",
+        "description": "The connected coordinator currently reports NID {nid}. Changing it can interrupt repeater traffic. A connected passthrough client continues to receive coordinator replies during the change.",
         "data": {
           "nid": "New network ID",
           "confirm": "Confirm the coordinator NID change"

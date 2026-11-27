@@ -17,7 +17,7 @@ from inovonics_echostream_processor import (
 )
 
 from .const import DEFAULT_ALERT_SECONDS, DEFAULT_WATCHDOG_SECONDS, DOMAIN
-from .control import Coordinator, Source, read_coordinator_serial
+from .control import NID_READ_TIMEOUT, Coordinator, Source, read_coordinator_serial
 from .debug_relay import DebugRelay
 
 LOG = logging.getLogger(__name__)
@@ -98,9 +98,8 @@ class Link:
                 generation = self.control.observe(event)
                 if isinstance(event, SecurityMessageEvent):
                     self.on_security(event, generation)
-            if self.relay is not None:
-                self.relay.forward(send)
-            self.control.tick(send, poll_interval=self.poll_interval)
+            passthrough_idle = self.relay is not None and self.relay.forward(send)
+            self.control.tick(send, poll_interval=self.poll_interval, passthrough_idle=passthrough_idle)
             self.control.checkpoint()
 
 
@@ -205,10 +204,10 @@ class Runtime:
             self.notify()
             return True
 
-    async def read_coordinator_nid(self):
-        after = await self.hass.async_add_executor_job(self.control.request_nid_read)
+    async def read_coordinator_nid(self, *, for_change=False):
+        after = await self.hass.async_add_executor_job(self.control.request_nid_read, for_change)
         try:
-            async with timeout(5):
+            async with timeout(NID_READ_TIMEOUT):
                 while self.active:
                     nid = await self.hass.async_add_executor_job(self.control.nid_read_result, after)
                     if nid is not None:

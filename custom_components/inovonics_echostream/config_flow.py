@@ -137,7 +137,7 @@ class InovonicsOptions(config_entries.OptionsFlowWithReload):
         errors = {}
         try:
             if self._current_nid is None:
-                self._current_nid = await runtime.read_coordinator_nid()
+                self._current_nid = await runtime.read_coordinator_nid(for_change=True)
             if user_input is not None and user_input.get("confirm"):
                 self._control = runtime.control
                 self._change = await self.hass.async_add_executor_job(
