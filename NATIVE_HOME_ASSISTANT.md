@@ -6,21 +6,19 @@ The integration runs in Home Assistant Core and connects directly to an EchoStre
 
 On Home Assistant 2026.11 or newer:
 
-1. Open **Settings → Marketplace → Add from link**.
-2. Add `https://github.com/technochris1/inovonics-home-assistant`.
-3. Open **Inovonics EchoStream** and select **Install**. Restart Home Assistant if prompted.
-4. For a new setup, go to **Settings → Devices & services → Add integration → Inovonics EchoStream**, then enter the coordinator connection details.
-
-For an existing manual installation, keep its configured Home Assistant integration entry. Marketplace installs into the existing integration directory and will show future releases as updates.
+1. Open **Settings → Marketplace** and search for **Inovonics EchoStream**.
+2. Open the listing and select **Install**.
+3. For a new setup, follow the prompts to enter the coordinator connection details.
 
 ## Install through HACS on older Home Assistant versions
 
-1. Open **HACS → ⋮ → Custom repositories**.
-2. Add `https://github.com/technochris1/inovonics-home-assistant` with type **Integration**.
-3. Open **Inovonics EchoStream** in HACS and select **Download**.
-4. Restart Home Assistant. For a new setup, go to **Settings → Devices & services → Add integration → Inovonics EchoStream**, then choose TCP or serial and enter the coordinator connection details.
+1. Open **HACS** and search for **Inovonics EchoStream**.
+2. Open the listing and select **Download**.
+3. Restart Home Assistant. For a new setup, go to **Settings → Devices & services → Add integration → Inovonics EchoStream**, then choose TCP or serial and enter the coordinator connection details.
 
-For an existing manual installation, follow the same HACS download and restart steps and keep the existing Home Assistant integration entry. Future releases appear in HACS, where you can download them and restart Home Assistant to apply them.
+When switching from a manual installation to Marketplace or HACS, keep your
+existing Home Assistant integration entry. Future releases appear as updates
+in the store you use.
 
 ## Install manually
 
@@ -37,8 +35,8 @@ In the integration options, set **Reconnect after coordinator silence** and
 of silence and 180 seconds after a detected outage. Set either value to 0 to
 disable that feature. Retries continue while the coordinator is offline.
 The coordinator Connectivity sensor stays off during retries and returns to
-connected after receiving data. **Last coordinator data** shows the last
-received bytes. The persistent Home Assistant notification clears on recovery.
+connected after receiving data. **Last coordinator data** shows when data last
+arrived. The persistent Home Assistant notification clears on recovery.
 
 The watchdog also runs while a passthrough client is attached. The client
 supplies any coordinator queries while attached. Set the silence interval

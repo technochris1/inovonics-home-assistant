@@ -34,7 +34,7 @@
       }
     },
     "error": {
-      "cannot_connect": "Could not open the connection. Check the settings and make sure another bridge is not using it."
+      "cannot_connect": "Could not connect. Check the connection settings. If using serial, make sure the port is available."
     },
     "abort": {
       "already_configured": "An Inovonics coordinator is already configured.",

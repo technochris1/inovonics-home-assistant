@@ -120,8 +120,7 @@ class Runtime:
     async def create(cls, hass, entry):
         source = Source.from_options(entry.data)
         folder = Path(hass.config.path(".storage"))
-        # The wire engine reads and writes its own device inventory. Give each
-        # entry a distinct backup path.
+        # Store device supervision data separately for each config entry.
         folder = folder / f"{DOMAIN}.{entry.entry_id}"
         await hass.async_add_executor_job(lambda: folder.mkdir(parents=True, exist_ok=True))
         control = await hass.async_add_executor_job(Coordinator, source, folder)

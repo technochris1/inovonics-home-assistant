@@ -1,5 +1,3 @@
-"""Constants used by config entries and entities."""
-
 DOMAIN = "inovonics_echostream"
 COORDINATOR = "coordinator"
 DEFAULT_WATCHDOG_SECONDS = 300
