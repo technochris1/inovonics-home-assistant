@@ -22,7 +22,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
     @callback
     def discover():
         entities = []
-        for uid, device in runtime.devices.items():
+        devices = runtime.devices
+        added.intersection_update(devices)
+        for uid, device in devices.items():
             if uid in added:
                 continue
             added.add(uid)

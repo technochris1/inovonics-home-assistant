@@ -1,7 +1,21 @@
+read_coordinator_nid:
+  name: Read coordinator NID
+  description: Request the current network ID and return the coordinator's reply.
+  fields:
+    coordinator:
+      name: Coordinator
+      selector:
+        config_entry:
+          integration: inovonics_echostream
 set_coordinator_nid:
   name: Set coordinator NID
   description: Change the coordinator network ID and verify it through readback. This can interrupt repeater traffic.
   fields:
+    coordinator:
+      name: Coordinator
+      selector:
+        config_entry:
+          integration: inovonics_echostream
     nid:
       name: Network ID
       description: "0 uses broadcast mode. 1–31 use directed mode."
@@ -21,6 +35,11 @@ sync_repeater_nid:
   name: Apply coordinator NID to a repeater
   description: Apply the current coordinator NID to a heard repeater. A matching reset report confirms the update.
   fields:
+    coordinator:
+      name: Coordinator
+      selector:
+        config_entry:
+          integration: inovonics_echostream
     uid:
       name: Repeater UID
       required: true
@@ -39,6 +58,11 @@ set_device_offline_timeout:
   name: Set device offline timeout
   description: Override an endpoint or repeater offline window. Omit minutes to use its default.
   fields:
+    coordinator:
+      name: Coordinator
+      selector:
+        config_entry:
+          integration: inovonics_echostream
     uid:
       name: Device UID
       required: true

@@ -15,7 +15,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
     @callback
     def discover():
         entities = []
-        for uid in (COORDINATOR, *runtime.devices):
+        device_uids = (COORDINATOR, *runtime.devices)
+        known_uids = set(device_uids) | runtime.points.keys()
+        added.difference_update([key for key in added if key[0] not in known_uids])
+        for uid in device_uids:
             key = uid, "connectivity"
             if key not in added:
                 added.add(key)

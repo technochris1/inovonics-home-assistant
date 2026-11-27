@@ -1,5 +1,6 @@
 """Run the coordinator in one transport thread and update HA from its event loop."""
 
+from asyncio import Lock, sleep, timeout
 from dataclasses import dataclass, field
 from datetime import timedelta
 import logging
@@ -12,11 +13,11 @@ from homeassistant.core import callback
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 from inovonics_echostream_processor import (
-    EchoStreamProcessorCore, SecurityMessageEvent, security_event_to_bit_state_updates,
+    EchoStreamProcessorCore, EchoStreamProtocol, SecurityMessageEvent, security_event_to_bit_state_updates,
 )
 
 from .const import DEFAULT_ALERT_SECONDS, DEFAULT_WATCHDOG_SECONDS, DOMAIN
-from .control import Coordinator, Source
+from .control import Coordinator, Source, read_coordinator_serial
 from .debug_relay import DebugRelay
 
 LOG = logging.getLogger(__name__)
@@ -54,6 +55,10 @@ class Link:
             self.read_in_session = False
             try:
                 with source.open() as connection:
+                    if self.control.serial is None:
+                        source.send(connection, EchoStreamProtocol.REQUEST_COORDINATOR_SERIAL_NUMBER)
+                    elif read_coordinator_serial(source, connection) != self.control.serial:
+                        raise ValueError("The connection belongs to a different physical coordinator.")
                     self.control.open_session()
                     self.receive_session(source, connection)
             except (OSError, ValueError) as error:
@@ -90,9 +95,9 @@ class Link:
             elif self.watchdog_seconds and now - last_rx >= self.watchdog_seconds:
                 raise TimeoutError(f"No coordinator data for {self.watchdog_seconds} seconds")
             for event in core.feed(data).events:
-                self.control.observe(event)
+                generation = self.control.observe(event)
                 if isinstance(event, SecurityMessageEvent):
-                    self.on_security(event)
+                    self.on_security(event, generation)
             if self.relay is not None:
                 self.relay.forward(send)
             self.control.tick(send, poll_interval=self.poll_interval)
@@ -108,6 +113,7 @@ class Runtime:
     view: dict
     points: dict = field(default_factory=dict)
     pinned_points: set = field(default_factory=set)
+    removal_lock: Lock = field(default_factory=Lock)
     listeners: list = field(default_factory=list)
     dirty: bool = False
     active: bool = True
@@ -123,15 +129,21 @@ class Runtime:
         # Store device supervision data separately for each config entry.
         folder = folder / f"{DOMAIN}.{entry.entry_id}"
         await hass.async_add_executor_job(lambda: folder.mkdir(parents=True, exist_ok=True))
-        control = await hass.async_add_executor_job(Coordinator, source, folder)
+        control = await hass.async_add_executor_job(Coordinator, source, folder, entry.data.get("coordinator_serial"))
         store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}.points")
         saved = await store.async_load() or {}
         runtime = cls(hass, entry, control, store, await hass.async_add_executor_job(control.snapshot))
         if saved.get("source") == source.label:
-            runtime.pinned_points = set(saved.get("pinned_points", ()))
+            generations = runtime.view["device_generations"]
+            saved_generations = saved.get("device_generations", {})
+            runtime.pinned_points = {
+                point for point in saved.get("pinned_points", ())
+                if saved_generations.get(uid := point.partition(".")[0], 0) == generations.get(uid, 0)
+            }
             runtime.points = {
                 uid: {suffix: value for suffix, value in points.items() if suffix.startswith("STAT")}
                 for uid, points in saved.get("points", {}).items()
+                if saved_generations.get(uid, 0) == generations.get(uid, 0)
             }
         relay = None
         mode = entry.options.get("debug_mode", "off")
@@ -147,6 +159,11 @@ class Runtime:
     @property
     def devices(self):
         return {device["uid"]: device for device in self.view["devices"]}
+
+    @property
+    def identity_prefix(self):
+        # The original single-coordinator entry keeps its registry IDs.
+        return "" if self.entry.unique_id in (None, DOMAIN) else f"{self.entry.entry_id}:"
 
     async def start(self):
         await self.hass.async_add_executor_job(self.configure_and_start)
@@ -169,15 +186,47 @@ class Runtime:
         if self.dirty:
             await self.save()
 
-    def queue_security(self, event):
+    async def forget_device(self, uid):
+        async with self.removal_lock:
+            if not self.active:
+                return False
+            try:
+                generation = await self.hass.async_add_executor_job(self.control.forget_device, uid)
+            except OSError:
+                LOG.exception("Unable to forget Inovonics device %s", uid)
+                return False
+            if generation is None:
+                return False
+            self.view["device_generations"][uid] = generation
+            self.view["devices"] = [device for device in self.view["devices"] if device["uid"] != uid]
+            self.points.pop(uid, None)
+            self.pinned_points = {point for point in self.pinned_points if not point.startswith(f"{uid}.")}
+            self.dirty = True
+            self.notify()
+            return True
+
+    async def read_coordinator_nid(self):
+        after = await self.hass.async_add_executor_job(self.control.request_nid_read)
+        try:
+            async with timeout(5):
+                while self.active:
+                    nid = await self.hass.async_add_executor_job(self.control.nid_read_result, after)
+                    if nid is not None:
+                        return nid
+                    await sleep(0.2)
+        except TimeoutError:
+            pass
+        raise ValueError("The coordinator did not report its NID.")
+
+    def queue_security(self, event, generation):
         if self.active:
-            self.hass.loop.call_soon_threadsafe(self.accept_security, event)
+            self.hass.loop.call_soon_threadsafe(self.accept_security, event, generation)
 
     @callback
-    def accept_security(self, event):
-        if not self.active:
-            return
+    def accept_security(self, event, generation):
         uid = event.device_uid_hex
+        if not self.active or generation != self.view["device_generations"].get(uid, 0):
+            return
         hide = self.entry.options.get("hide_unsupported", True)
         previous = self.points.get(uid, {})
         current = {}
@@ -201,11 +250,15 @@ class Runtime:
 
     async def refresh(self, _now):
         view = await self.hass.async_add_executor_job(self.control.snapshot)
-        if not self.active:
+        if not self.active or view["device_generations"] != self.view["device_generations"]:
             return
         if view != self.view:
             self.view = view
             self.notify()
+        if view["serial"] is not None and self.entry.data.get("coordinator_serial") is None:
+            self.hass.config_entries.async_update_entry(
+                self.entry, data={**self.entry.data, "coordinator_serial": view["serial"]},
+            )
         self.update_outage_alert(view["outage_since"])
         if self.dirty and monotonic() >= self.next_save:
             self.next_save = monotonic() + 15
@@ -233,6 +286,7 @@ class Runtime:
     async def save(self, *, strict=False):
         data = {"source": self.control.source.label,
                 "points": {uid: points.copy() for uid, points in self.points.items()},
+                "device_generations": self.view["device_generations"].copy(),
                 "pinned_points": sorted(self.pinned_points)}
         self.dirty = False
         try:
