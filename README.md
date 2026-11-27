@@ -5,7 +5,7 @@ receivers. It connects directly over TCP or serial and creates devices and
 sensor entities in Home Assistant.
 
 For hardware photos and specifications, see the
-[Inovonics EN4200 product page](https://www.inovonics.com/products/security-only-serial-receiver-en4200/).
+[Inovonics EN6040-T Network Coordinator product page](https://www.inovonics.com/products/network-coordinator-en6040-t/).
 
 ## Install the native integration
 
