@@ -14,5 +14,5 @@
   "requirements": [
     "inovonics-echostream-processor[cpython-uart]==1.5.2"
   ],
-  "version": "1.3.0"
+  "version": "1.3.1"
 }
